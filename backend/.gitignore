@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+leam.db
+weights/*.pt
+weights/*.pth
+runs/
+*.egg-info/
+dist/
+build/
+.venv/

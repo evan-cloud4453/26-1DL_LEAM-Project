@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEAM - 학습 집중도 분석</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI','Malgun Gothic',sans-serif; background:#0f0f1a; color:#e0e0e0; min-height:100vh; overflow-x:hidden; }
+.hidden { display:none !important; }
+h1 { font-size:40px; background:linear-gradient(135deg,#4fc3f7,#66bb6a); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.btn { border:none; border-radius:10px; padding:12px 28px; font-size:15px; font-weight:600; cursor:pointer; transition:.2s; font-family:inherit; }
+.btn:hover { filter:brightness(1.15); transform:translateY(-1px); }
+.btn-primary { background:linear-gradient(135deg,#4fc3f7,#2196f3); color:#fff; }
+.btn-stop { background:linear-gradient(135deg,#ef5350,#d32f2f); color:#fff; }
+.btn-ghost { background:#1a1a3a; color:#cdd; border:1px solid #2a2a4a; }
+
+/* Welcome / Mode */
+.center-screen { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:24px; text-align:center; }
+.subtitle { color:#888; font-size:15px; }
+.mode-cards { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; }
+.mode-card { width:260px; background:#16213e; border:1px solid #2a2a4a; border-radius:16px; padding:32px 24px; cursor:pointer; transition:.2s; }
+.mode-card:hover { border-color:#4fc3f7; transform:translateY(-4px); box-shadow:0 8px 24px rgba(79,195,247,.15); }
+.mode-card .ico { font-size:48px; margin-bottom:12px; }
+.mode-card .t { font-size:20px; font-weight:700; color:#4fc3f7; margin-bottom:8px; }
+.mode-card .d { font-size:13px; color:#999; line-height:1.5; }
+
+/* 세션: 두 모드 모두 풀스크린 카메라 */
+#sessionScreen { position:relative; width:100vw; height:100vh; background:#000; }
+.video-wrap { position:absolute; inset:0; }
+.video-wrap video, .video-wrap canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.video-wrap video { transform:scaleX(-1); }
+.video-wrap canvas { transform:scaleX(-1); z-index:2; }
+
+/* 중앙 안내 문구 */
+#overlayMsg { position:absolute; left:50%; top:14%; transform:translateX(-50%); z-index:7; background:rgba(0,0,0,.6); color:#fff;
+  padding:14px 28px; border-radius:30px; font-size:20px; font-weight:600; text-align:center; backdrop-filter:blur(4px);
+  border:1px solid rgba(255,255,255,.15); max-width:80%; }
+#overlayMsg.big { top:40%; font-size:26px; padding:20px 40px; }
+
+/* 상단 컨트롤 (두 모드 공통, 카메라 위 오버레이) */
+.top-right { position:absolute; top:18px; right:18px; z-index:8; display:flex; gap:10px; align-items:center; }
+.top-left { position:absolute; top:18px; left:18px; z-index:8; display:flex; gap:10px; align-items:center; }
+.mini-timer { background:rgba(0,0,0,.55); color:#fff; padding:8px 16px; border-radius:20px; font-size:15px; font-variant-numeric:tabular-nums; font-weight:600; }
+.icon-btn { background:rgba(0,0,0,.55); color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:20px; padding:8px 14px; font-size:13px; cursor:pointer; }
+.icon-btn:hover { background:rgba(0,0,0,.75); }
+.icon-btn.on { background:#4fc3f7; color:#000; }
+
+/* 경고 */
+#warnFlash { position:absolute; inset:0; z-index:6; pointer-events:none; }
+#warnFlash.on { animation:warnpulse 1s infinite; }
+@keyframes warnpulse { 0%,100%{ box-shadow:inset 0 0 120px 40px rgba(239,83,80,0);} 50%{ box-shadow:inset 0 0 160px 70px rgba(239,83,80,.65);} }
+#warnText { position:absolute; left:50%; bottom:14%; transform:translateX(-50%); z-index:9; color:#fff; background:rgba(211,47,47,.85); padding:12px 24px; border-radius:24px; font-size:18px; font-weight:700; }
+
+/* 개발자 패널: 카메라 위 반투명 오버레이 (사용자 중심 디버깅) */
+#devPanel { position:absolute; top:64px; left:14px; z-index:7; width:300px; max-height:80vh; overflow-y:auto;
+  background:rgba(12,14,26,.8); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:10px; }
+#devPanel .panel { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+#devPanel .panel:last-child { margin-bottom:0; }
+.panel h3 { font-size:11px; color:#4fc3f7; margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px; }
+.grade-display { text-align:center; }
+.grade-letter { font-size:48px; font-weight:800; line-height:1; }
+.grade-A{color:#66bb6a;} .grade-B{color:#ffd54f;} .grade-C{color:#ff9800;} .grade-F{color:#ef5350;}
+.grade-score { font-size:14px; color:#aaa; margin-top:2px; }
+.status-row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:12px; }
+.status-row:last-child { border:none; }
+.status-label { color:#9aa; } .status-val { font-weight:600; font-family:monospace; }
+.log-area { max-height:140px; overflow-y:auto; font-size:11px; font-family:monospace; }
+.log-area div { padding:1px 0; border-bottom:1px solid rgba(255,255,255,.04); }
+.log-warn { color:#ff9800; } .log-err { color:#ef5350; }
+
+/* 모달 */
+.modal-back { position:fixed; inset:0; background:rgba(0,0,0,.78); z-index:50; display:flex; align-items:center; justify-content:center; padding:20px; }
+.modal { background:#16213e; border:1px solid #2a2a4a; border-radius:16px; max-width:520px; padding:32px; }
+.modal h2 { color:#4fc3f7; font-size:22px; margin-bottom:18px; }
+.modal p { font-size:14.5px; line-height:1.6; margin-bottom:12px; color:#cdd; }
+.modal p.warn { background:rgba(255,152,0,.12); border:1px solid rgba(255,152,0,.4); border-radius:10px; padding:12px 14px; color:#ffb74d; }
+.modal ul { list-style:none; display:flex; flex-direction:column; gap:14px; margin-bottom:24px; }
+.modal li { display:flex; gap:12px; font-size:15px; line-height:1.5; }
+.modal li .n { flex:0 0 26px; height:26px; background:#4fc3f7; color:#000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; }
+.modal .btn-row { display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
+
+/* 결과 화면 */
+#resultScreen, #recordsScreen { max-width:760px; margin:0 auto; padding:40px 24px; min-height:100vh; }
+.result-head { text-align:center; margin-bottom:20px; }
+.badge { display:inline-block; padding:4px 14px; border-radius:14px; font-size:12px; font-weight:700; }
+.badge-focus { background:#1b3a2a; color:#66bb6a; border:1px solid #2e6b48; }
+.badge-dev { background:#3a2a1b; color:#ffb74d; border:1px solid #6b542e; }
+.res-main { text-align:center; background:#16213e; border:1px solid #2a2a4a; border-radius:20px; padding:36px 24px; margin-bottom:18px; }
+.big-grade { font-size:96px; font-weight:800; line-height:1; }
+.big-score { font-size:44px; font-weight:700; color:#4fc3f7; margin-top:6px; }
+.big-score .of { font-size:22px; color:#778; margin-left:6px; }
+.res-sub { color:#889; font-size:14px; margin-top:8px; }
+.res-incomplete { font-size:30px; font-weight:700; color:#ff9800; }
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin:16px 0; }
+.brk { margin-top:18px; background:#13182b; border:1px solid #2a2a4a; border-radius:12px; padding:16px; }
+.brk h4 { font-size:14px; color:#4fc3f7; margin-bottom:10px; }
+.brk-t { width:100%; border-collapse:collapse; font-size:13px; }
+.brk-t th, .brk-t td { border:1px solid #2a2a4a; padding:6px 10px; text-align:center; }
+.brk-t th { background:#1a2540; color:#cdd; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; }
+.chip { background:#2a1b1b; border:1px solid #5a3030; color:#ff9e9e; border-radius:14px; padding:5px 12px; font-size:12.5px; }
+.formula div { font-size:13.5px; margin:5px 0; color:#cdd; }
+.formula .note { font-size:11.5px; color:#888; margin-top:10px; line-height:1.5; }
+.stat-card { background:#16213e; border:1px solid #2a2a4a; border-radius:12px; padding:18px; text-align:center; }
+.stat-card .val { font-size:24px; font-weight:700; color:#4fc3f7; }
+.stat-card .label { font-size:12px; color:#888; margin-top:6px; }
+.btn-row { display:flex; gap:12px; justify-content:center; margin-top:8px; flex-wrap:wrap; }
+
+/* 기록 목록 */
+.rec-item { display:flex; align-items:center; gap:16px; background:#16213e; border:1px solid #2a2a4a; border-radius:12px; padding:16px 20px; margin-bottom:10px; cursor:pointer; transition:.15s; }
+.rec-item:hover { border-color:#4fc3f7; }
+.rec-item .rgrade { font-size:30px; font-weight:800; flex:0 0 50px; text-align:center; }
+.rec-item .rscore { font-size:22px; font-weight:700; color:#4fc3f7; flex:0 0 70px; text-align:center; }
+.rec-item .rmeta { flex:1; } .rec-item .rdate { font-size:13px; color:#aaa; }
+.rec-empty { text-align:center; color:#777; padding:60px 0; }
+</style>
+</head>
+<body>
+
+<!-- 1. 시작 -->
+<div id="welcomeScreen" class="center-screen">
+  <h1>LEAM</h1>
+  <p class="subtitle">Learning Environment Adaptive Model · AI 학습 집중도 분석</p>
+  <button class="btn btn-primary" style="font-size:18px;padding:16px 48px" onclick="showModeScreen()">시작하기</button>
+</div>
+
+<!-- 2. 모드 선택 -->
+<div id="modeScreen" class="center-screen hidden">
+  <h1 style="font-size:30px">모드 선택</h1>
+  <div class="mode-cards">
+    <div class="mode-card" onclick="selectMode('focus')">
+      <div class="ico">🎯</div><div class="t">집중 모드</div>
+      <div class="d">실제 학습용. 카메라 전체 화면, 방해 요소 최소화. 측정 후 결과 제공.</div>
+    </div>
+    <div class="mode-card" onclick="selectMode('dev')">
+      <div class="ico">🛠️</div><div class="t">개발자 모드</div>
+      <div class="d">카메라 위에 실시간 수치를 오버레이하여 디버깅.</div>
+    </div>
+  </div>
+  <button class="btn btn-ghost" onclick="showRecords()">📊 기록 보기</button>
+  <button class="btn" style="background:none;border:none;color:#666" onclick="backToWelcome()">← 처음으로</button>
+</div>
+
+<!-- 3. 세션 -->
+<div id="sessionScreen" class="hidden">
+  <div class="video-wrap">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div id="warnFlash"></div>
+  <div id="warnText" class="hidden">⚠️ 얼굴이 감지되지 않습니다</div>
+  <div id="overlayMsg" class="hidden"></div>
+  <div class="top-left">
+    <span id="miniTimer" class="mini-timer hidden">00:00:00</span>
+    <button id="fsBtn" class="icon-btn" onclick="toggleFullscreen()">⛶ 전체화면</button>
+  </div>
+  <div class="top-right">
+    <button id="adaptBtn" class="icon-btn hidden" onclick="openReadapt()">＋ 학습 도구 추가(적응)</button>
+    <button id="heatBtn" class="icon-btn hidden" onclick="toggleHeatmap()">집중 분포 보기</button>
+    <button class="btn btn-stop" style="padding:8px 18px;font-size:13px" onclick="stopSession()">종료</button>
+  </div>
+
+  <!-- 개발자 오버레이 패널 -->
+  <div id="devPanel" class="hidden">
+    <div class="panel grade-display"><div class="grade-letter grade-A" id="gradeLetter">-</div><div class="grade-score" id="gradeScore">대기 중</div></div>
+    <div class="panel">
+      <h3>실시간 상태</h3>
+      <div class="status-row"><span class="status-label">Phase</span><span class="status-val" id="stPhase">-</span></div>
+      <div class="status-row"><span class="status-label">얼굴</span><span class="status-val" id="stFace">-</span></div>
+      <div class="status-row"><span class="status-label">EAR</span><span class="status-val" id="stEar">-</span></div>
+      <div class="status-row"><span class="status-label">MAR</span><span class="status-val" id="stMar">-</span></div>
+      <div class="status-row"><span class="status-label">시선 Y/P(L2CS)</span><span class="status-val" id="stGaze">-</span></div>
+      <div class="status-row"><span class="status-label">고개 Y/P</span><span class="status-val" id="stHead">-</span></div>
+      <div class="status-row"><span class="status-label">시선 좌표</span><span class="status-val" id="stGp">-</span></div>
+      <div class="status-row"><span class="status-label">Zone 여부</span><span class="status-val" id="stZone">-</span></div>
+      <div class="status-row"><span class="status-label">휴대폰</span><span class="status-val" id="stPhone">-</span></div>
+      <div class="status-row"><span class="status-label">소음 dB</span><span class="status-val" id="stNoise">-</span></div>
+      <div class="status-row"><span class="status-label">오디오 이벤트</span><span class="status-val" id="stAudioEvt">-</span></div>
+    </div>
+    <div class="panel">
+      <h3>디버그</h3>
+      <div class="status-row"><span class="status-label">FPS</span><span class="status-val" id="stFps">-</span></div>
+      <div class="status-row"><span class="status-label">WS</span><span class="status-val" id="stWs">-</span></div>
+      <div class="status-row"><span class="status-label">원점보정</span><span class="status-val" id="stBase">-</span></div>
+      <div class="status-row"><span class="status-label">얼굴폭</span><span class="status-val" id="stFw">-</span></div>
+      <div class="status-row"><span class="status-label">시선점</span><span class="status-val" id="stPts">-</span></div>
+      <div class="status-row"><span class="status-label">Zone수</span><span class="status-val" id="stZones">-</span></div>
+    </div>
+    <div class="panel"><h3>이벤트 로그</h3><div class="log-area" id="logArea"></div></div>
+  </div>
+</div>
+
+<!-- 시작 안내 모달 -->
+<div id="noticeModal" class="modal-back hidden">
+  <div class="modal">
+    <h2>측정 시작 전 안내</h2>
+    <ul>
+      <li><span class="n">1</span><span>측정 중에는 디바이스(휴대폰 등) 사용이 제한될 수 있습니다.</span></li>
+      <li><span class="n">2</span><span>최초 약 3분간은 학습환경 분석 단계로, 집중 시간이 누적되지 않습니다.</span></li>
+      <li><span class="n">3</span><span>얼굴이 화면에서 벗어나거나 장시간 검출되지 않으면 자동 종료될 수 있습니다.</span></li>
+    </ul>
+    <div class="btn-row"><button class="btn btn-primary" onclick="confirmNotice()">확인하고 시작</button></div>
+  </div>
+</div>
+
+<!-- 재적응 모달 -->
+<div id="readaptModal" class="modal-back hidden">
+  <div class="modal">
+    <h2>학습 환경 재적응</h2>
+    <p>학습 도구 위치가 바뀌었나요? 측정을 잠시 멈추고 <b>약 3분간 학습 환경을 다시 분석</b>합니다. 지금까지의 측정 결과(점수)는 그대로 <b>누적</b>되며, 재적응이 끝나면 이어서 측정합니다.</p>
+    <p class="warn">잠깐 쉬려는 경우에는 결과가 계속 누적되므로, <b>‘종료’ 후 새로 측정</b>하시길 권장합니다.</p>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeReadapt()">취소</button>
+      <button class="btn btn-primary" onclick="confirmReadapt()">재적응 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4. 결과 -->
+<div id="resultScreen" class="hidden">
+  <div class="result-head"><div class="badge" id="resBadge"></div><p class="subtitle" id="resDate" style="margin-top:8px"></p></div>
+  <div class="res-main" id="resMain"></div>
+  <div class="btn-row"><button id="detailToggle" class="btn btn-ghost" onclick="toggleDetail()">상세 결과 보기 ▾</button></div>
+  <div class="hidden" id="resStats"></div>
+  <div class="btn-row" style="margin-top:18px">
+    <button class="btn btn-ghost" onclick="showRecords()">📊 기록 보기</button>
+    <button class="btn btn-primary" onclick="backToWelcome()">홈으로</button>
+  </div>
+</div>
+
+<!-- 5. 기록 -->
+<div id="recordsScreen" class="hidden">
+  <div class="result-head"><h1 style="font-size:30px">측정 기록</h1></div>
+  <div id="recList"></div>
+  <div class="btn-row" style="margin-top:24px">
+    <button class="btn btn-ghost" onclick="clearRecords()">기록 전체 삭제</button>
+    <button class="btn btn-primary" onclick="backToWelcome()">홈으로</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script>
+// ===== State =====
+let currentMode=null, sessionId=null, ws=null, phase='idle', startTime=null
+let timerInterval=null, phoneCheckInterval=null, audioCheckInterval=null, gazeCheckInterval=null
+let faceMesh=null, camera=null, audioCtx=null, analyser=null, audioStream=null, videoStream=null, mediaInit=false
+let showHeatmap=false, reachedActive=false
+let serverGaze={yaw:0,pitch:0,updated:false}, gazeBaseline={yaw:0,pitch:0,set:false}, headBaseline={pitch:0,set:false}
+let calibSamples=[], calibHeadSamples=[], gazeHistory=[], learnedZones=null
+let serverZoneGrid=null, serverZoneList=null, heatmapCanvas=null
+let alignStableFrames=0, holdEndTime=0, lastFaceW=0, faceAbsentStart=0
+let latestPhone={phone_detected:false,phone_confidence:0,t:0}, phoneHist=[]
+let latestAudio={is_disruptive:false,is_study_event:false,noise_db:0,study_events:[],detected_sounds:[],t:0}
+let audioSendInterval=null, audioRing=[], scriptNode=null
+let fpsT=performance.now(), fpsCount=0, fps=0, lastGrade='-', lastScore=0
+let overlayTimer=null, _lastLm=null
+const ALIGN_FRAMES_NEEDED=25, HOLD_SEC=5, AUTO_END_SEC=30
+const $=id=>document.getElementById(id)
+const video=$('webcam'), canvas=$('overlay'), ctx=canvas.getContext('2d')
+
+// ===== 화면 전환 =====
+function show(id){ ['welcomeScreen','modeScreen','sessionScreen','resultScreen','recordsScreen'].forEach(s=>$(s).classList.toggle('hidden',s!==id)) }
+function showModeScreen(){ show('modeScreen') }
+function backToWelcome(){ stopSessionIO(); resetSessionState(); show('welcomeScreen') }
+
+// ===== MediaPipe 연산 =====
+// LearnOpenCV 표준 6점 EAR 랜드마크 [P1,P2,P3,P4,P5,P6] (P1·P4 가로 모서리, P2·P3 윗꺼풀, P5·P6 아랫꺼풀)
+const LEFT_EYE=[362,385,387,263,373,380], RIGHT_EYE=[33,160,158,133,153,144]
+const MOUTH={top:13,bottom:14,left:78,right:308}
+function dist(a,b){return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2+((a.z||0)-(b.z||0))**2)}
+// EAR = (|P2-P6| + |P3-P5|) / (2·|P1-P4|)  — 눈을 감으면 0.1 근처로 떨어짐
+function computeEAR(lm,e){const p=i=>lm[e[i]];const v1=dist(p(1),p(5)),v2=dist(p(2),p(4)),h=dist(p(0),p(3));return h<1e-6?0.3:(v1+v2)/(2*h)}
+function computeMAR(lm){const v=dist(lm[MOUTH.top],lm[MOUTH.bottom]),h=dist(lm[MOUTH.left],lm[MOUTH.right]);return h<1e-6?0:v/h}
+function computeHeadPose(lm){const nose=lm[1],le=lm[33],re=lm[263],mx=(le.x+re.x)/2,my=(le.y+re.y)/2;return {yaw:(nose.x-mx)*250,pitch:(nose.y-my)*250,roll:Math.atan2(re.y-le.y,re.x-le.x)*57.3}}
+function computeGazePoint(lm){const h=computeHeadPose(lm),headPitch=h.pitch-(headBaseline.set?headBaseline.pitch:0)
+  if(serverGaze.updated){const yaw=serverGaze.yaw-(gazeBaseline.set?gazeBaseline.yaw:0),pitch=serverGaze.pitch-(gazeBaseline.set?gazeBaseline.pitch:0)
+    const x=0.5+yaw/70, l2cs=-pitch/(pitch>0?22:36), hd=headPitch/28, y=0.5+l2cs+hd
+    return {x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y))}}
+  return {x:Math.max(0,Math.min(1,0.5-h.yaw/50)),y:Math.max(0,Math.min(1,0.5+headPitch/28))}}
+function faceBox(lm){let a=1,b=1,c=0,d=0;for(const p of lm){if(p.x<a)a=p.x;if(p.y<b)b=p.y;if(p.x>c)c=p.x;if(p.y>d)d=p.y}return {minX:a,minY:b,maxX:c,maxY:d,cx:(a+c)/2,cy:(b+d)/2,w:c-a,h:d-b}}
+
+// ===== 학습 Zone =====
+function applyServerZones(lz){ if(!lz)return; serverZoneList=(lz.zones||[]).filter(z=>z.type==='study'); if(lz.grid){serverZoneGrid=lz.grid;heatmapCanvas=buildHeatmap(lz.grid)} addLog(`학습 Zone ${lz.k||serverZoneList.length}개 (fixation ${lz.fixation_count||0})`) }
+function buildHeatmap(grid){const c=document.createElement('canvas');c.width=grid.w;c.height=grid.h;const g=c.getContext('2d'),img=g.createImageData(grid.w,grid.h)
+  for(let y=0;y<grid.h;y++)for(let x=0;x<grid.w;x++){const v=grid.data[y][x],i=(y*grid.w+x)*4
+    if(v>=grid.threshold){img.data[i]=102;img.data[i+1]=187;img.data[i+2]=106;img.data[i+3]=Math.min(170,50+v*150)}
+    else if(v>0.05){img.data[i]=79;img.data[i+1]=195;img.data[i+2]=247;img.data[i+3]=v*70}}
+  g.putImageData(img,0,0);return c}
+function isInStudyZone(gx,gy){ if(serverZoneGrid){const col=Math.min(serverZoneGrid.w-1,Math.max(0,Math.floor(gx*serverZoneGrid.w))),row=Math.min(serverZoneGrid.h-1,Math.max(0,Math.floor(gy*serverZoneGrid.h)));return serverZoneGrid.data[row][col]>=serverZoneGrid.threshold} return true }
+function resetZones(){ gazeHistory=[];learnedZones=null;serverZoneGrid=null;serverZoneList=null;heatmapCanvas=null }
+function drawHeatmap(){ if(!heatmapCanvas)return; ctx.imageSmoothingEnabled=true; ctx.drawImage(heatmapCanvas,0,0,640,480); if(serverZoneList)for(const z of serverZoneList){ctx.beginPath();ctx.arc(z.center_x*640,z.center_y*480,4,0,6.28);ctx.fillStyle='#66bb6a';ctx.fill()} }
+
+// ===== 상태 초기화 =====
+function resetSessionState(){
+  phase='idle'; sessionId=null; reachedActive=false; showHeatmap=false
+  serverGaze={yaw:0,pitch:0,updated:false}; gazeBaseline={yaw:0,pitch:0,set:false}; headBaseline={pitch:0,set:false}
+  calibSamples=[]; calibHeadSamples=[]; resetZones()
+  alignStableFrames=0; holdEndTime=0; faceAbsentStart=0; lastGrade='-'; lastScore=0; latestPhone={phone_detected:false,phone_confidence:0,t:0}; phoneHist=[]
+  latestAudio={is_disruptive:false,is_study_event:false,noise_db:0,study_events:[],detected_sounds:[],t:0}; audioRing=[]
+  clearOverlay(); clearWarn(); clearTimeout(overlayTimer)
+  $('miniTimer').classList.add('hidden'); $('heatBtn').classList.add('hidden'); $('adaptBtn').classList.add('hidden')
+  $('heatBtn').classList.remove('on'); $('heatBtn').textContent='집중 분포 보기'
+  $('noticeModal').classList.add('hidden'); $('readaptModal').classList.add('hidden')
+  if($('logArea'))$('logArea').innerHTML=''
+}
+
+// ===== 모드 시작 =====
+async function selectMode(mode){
+  currentMode=mode
+  $('devPanel').classList.toggle('hidden', mode!=='dev')
+  resetSessionState(); show('sessionScreen')
+  try{ await startMedia(); phase='notice'; $('noticeModal').classList.remove('hidden') }
+  catch(e){ alert('카메라/마이크 접근 실패: '+e.message); stopMedia(); show('modeScreen') }
+}
+function confirmNotice(){ $('noticeModal').classList.add('hidden'); phase='align'; alignStableFrames=0; setOverlay('얼굴을 노란 윤곽선 안에 맞춰 주세요') }
+
+// ===== 미디어: 최초 1회만 초기화하고 앱 동안 계속 유지(재생성하지 않음) =====
+// 세션 간 카메라/FaceMesh를 파괴·재생성하지 않으므로 재시작 시 가이드가 정상 표시된다.
+async function startMedia(){
+  if(mediaInit) return  // 이미 초기화됨 → 재사용
+  videoStream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}})
+  video.srcObject=videoStream; await video.play(); canvas.width=640; canvas.height=480
+  try{ audioStream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:false}})
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});const src=audioCtx.createMediaStreamSource(audioStream)
+    analyser=audioCtx.createAnalyser();analyser.fftSize=2048;src.connect(analyser)
+    // 원시 PCM 누적(최근 ~2.5초) → 주기적으로 WAV로 서버 전송하여 AudioSet 이벤트/방해음 분석
+    scriptNode=audioCtx.createScriptProcessor(4096,1,1)
+    scriptNode.onaudioprocess=e=>{ audioRing.push(new Float32Array(e.inputBuffer.getChannelData(0)))
+      let tot=0; for(const c of audioRing)tot+=c.length; while(tot>16000*2.5){tot-=audioRing.shift().length} }
+    src.connect(scriptNode); scriptNode.connect(audioCtx.destination) }catch(e){ analyser=null }
+  faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`})
+  faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5}); faceMesh.onResults(onFaceResults)
+  camera=new Camera(video,{onFrame:async()=>{ try{await faceMesh.send({image:video})}catch(_){} },width:640,height:480}); camera.start()
+  mediaInit=true
+}
+// 세션 종료 시: WS·주기 작업만 정리하고 카메라/미디어는 유지
+function stopSessionIO(){
+  if(ws){try{ws.close()}catch(_){} ws=null}
+  [timerInterval,phoneCheckInterval,audioCheckInterval,gazeCheckInterval,audioSendInterval].forEach(t=>t&&clearInterval(t)); timerInterval=phoneCheckInterval=audioCheckInterval=gazeCheckInterval=audioSendInterval=null
+}
+// 완전 종료(오류 시·페이지 이탈): 카메라/스트림까지 해제
+function stopMedia(){
+  stopSessionIO()
+  if(camera){try{camera.stop()}catch(_){} camera=null}
+  if(videoStream){videoStream.getTracks().forEach(t=>t.stop());videoStream=null}
+  if(audioStream){audioStream.getTracks().forEach(t=>t.stop());audioStream=null}
+  if(audioCtx){try{audioCtx.close()}catch(_){} audioCtx=null} analyser=null; faceMesh=null; mediaInit=false
+  ctx.clearRect(0,0,640,480)
+}
+function getDb(){ if(!analyser)return 0;const buf=new Float32Array(analyser.fftSize);analyser.getFloatTimeDomainData(buf);let s=0;for(let i=0;i<buf.length;i++)s+=buf[i]*buf[i];const rms=Math.sqrt(s/buf.length);return rms>1e-10?Math.max(0,Math.min(120,20*Math.log10(rms/1e-5))):0 }
+
+// ===== 프레임 처리 =====
+function onFaceResults(results){
+  ctx.clearRect(0,0,640,480)
+  if(phase==='idle'||phase==='ended'||phase==='notice') return
+  fpsCount++; const now=performance.now(); if(now-fpsT>1000){fps=Math.round(fpsCount*1000/(now-fpsT));fpsCount=0;fpsT=now;if(currentMode==='dev')$('stFps').textContent=fps}
+  const hasFace=results.multiFaceLandmarks&&results.multiFaceLandmarks.length>0
+  if(phase==='active'&&(currentMode==='dev'||showHeatmap)) drawHeatmap()
+  if(!hasFace){ handleNoFace(); if(currentMode==='dev')updateDev({face_detected:false}); sendFeatures({face_detected:false}); return }
+  clearWarn()
+  const lm=results.multiFaceLandmarks[0], box=faceBox(lm); lastFaceW=box.w
+  if(phase==='align'){ drawFaceGuide(box); checkAlignment(box); return }
+  if(phase==='hold'){ drawFaceGuide(box,true); const left=Math.ceil((holdEndTime-Date.now())/1000); setOverlay(`준비 완료! 얼굴을 움직이지 마세요  (${Math.max(0,left)})`); if(Date.now()>=holdEndTime) beginServerSession(); return }
+  _lastLm=lm
+  const earL=computeEAR(lm,LEFT_EYE), earR=computeEAR(lm,RIGHT_EYE), mar=computeMAR(lm), head=computeHeadPose(lm), gp=computeGazePoint(lm)
+  if(phase==='calibrating') calibHeadSamples.push(head.pitch)
+  if(phase==='adapting') gazeHistory.push({x:gp.x,y:gp.y})
+  if(currentMode==='dev'){ const iz=isInStudyZone(gp.x,gp.y); ctx.beginPath();ctx.arc(gp.x*640,gp.y*480,10,0,6.28);ctx.fillStyle=iz?'rgba(102,187,106,.6)':'rgba(239,83,80,.6)';ctx.fill();ctx.strokeStyle=iz?'#66bb6a':'#ef5350';ctx.lineWidth=2;ctx.stroke() }
+  drawPhoneBox()  // 휴대폰 바운딩박스 (두 모드 공통)
+  const feat={face_detected:true,ear_left:earL,ear_right:earR,mar,gaze_yaw:serverGaze.yaw,gaze_pitch:serverGaze.pitch,head_yaw:head.yaw,head_pitch:head.pitch,head_roll:head.roll,gaze_point_x:gp.x,gaze_point_y:gp.y}
+  if(currentMode==='dev')updateDev(feat,gp); sendFeatures(feat)
+}
+// 윤곽선 크기를 기존의 65%로 축소(실제 학습 거리에 맞게 얼굴을 더 멀리·작게)
+function drawFaceGuide(box,ok){const cx=320,cy=205,rw=78,rh=104,aligned=ok||isAligned(box)
+  ctx.strokeStyle=aligned?'#66bb6a':'#ffd54f';ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(cx,cy,rw,rh,0,0,6.28);ctx.stroke()
+  ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(cx-29,cy-20,14,8,0,0,6.28);ctx.stroke();ctx.beginPath();ctx.ellipse(cx+29,cy-20,14,8,0,0,6.28);ctx.stroke()}
+// 가이드 축소에 맞춰 얼굴 폭 허용범위도 더 작게(멀리) 조정: 약 0.16~0.40
+function isAligned(b){return Math.abs(b.cx-0.5)<0.10&&Math.abs(b.cy-0.45)<0.13&&b.w>0.16&&b.w<0.40}
+function checkAlignment(box){ if(isAligned(box)){ alignStableFrames++; const pct=Math.min(100,Math.round(alignStableFrames/ALIGN_FRAMES_NEEDED*100)); setOverlay(`좋아요! 그대로 유지하세요… ${pct}%`); if(alignStableFrames>=ALIGN_FRAMES_NEEDED){phase='hold';holdEndTime=Date.now()+HOLD_SEC*1000} }
+  else{ alignStableFrames=0; let m='얼굴을 노란 윤곽선 안에 맞춰 주세요'; if(box.w<=0.16)m='카메라에 조금 더 가까이 와 주세요'; else if(box.w>=0.40)m='카메라에서 조금 더 멀어져 주세요'; else if(box.cx<0.4)m='얼굴을 오른쪽으로 옮겨 주세요'; else if(box.cx>0.6)m='얼굴을 왼쪽으로 옮겨 주세요'; setOverlay(m) } }
+
+async function beginServerSession(){
+  phase='calibrating'; setOverlay('캘리브레이션 진행 중입니다. 잠시 움직이지 마세요…',true)
+  try{ const res=await fetch('/api/sessions/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); sessionId=(await res.json()).id; addLog('세션 시작: '+sessionId.slice(0,8))
+    connectWS(); startTimer(); startPeriodicChecks(); $('miniTimer').classList.remove('hidden') }
+  catch(e){ alert('세션 시작 오류: '+e.message); backToWelcome() }
+}
+
+// ===== WebSocket =====
+function connectWS(){ const proto=location.protocol==='https:'?'wss':'ws'; ws=new WebSocket(`${proto}://${location.host}/api/analysis/ws/${sessionId}`)
+  ws.onopen=()=>{if(currentMode==='dev')$('stWs').textContent='연결됨'}
+  ws.onmessage=e=>{const d=JSON.parse(e.data); if(d.type==='concentration')handleConcentration(d); else if(d.type==='gaze_estimation')handleGaze(d); else if(d.type==='phone_detection')handlePhone(d); else if(d.type==='audio_analysis')handleAudio(d); else if(d.type==='phase_update')handlePhase(d)}
+  ws.onclose=()=>{if(currentMode==='dev')$('stWs').textContent='끊김'} }
+function sendFeatures(feat){ if(!ws||ws.readyState!==1)return
+  // 최근(3초 내) 휴대폰 탐지 결과를 등급 판정에 반영
+  const phoneRecent=(Date.now()-latestPhone.t)<3000 ? {phone_detected:latestPhone.phone_detected,phone_confidence:latestPhone.phone_confidence} : {phone_detected:false,phone_confidence:0}
+  // 최근(4초 내) 오디오 분석 결과(학습 이벤트/방해음)를 반영, 없으면 dB만
+  const audioRecent=(Date.now()-latestAudio.t)<4000
+    ? {noise_db:latestAudio.noise_db, is_disruptive:latestAudio.is_disruptive, is_study_event:latestAudio.is_study_event}
+    : {noise_db:getDb(), is_disruptive:false, is_study_event:false}
+  ws.send(JSON.stringify({type:'features',features:feat,audio:audioRecent,phone:phoneRecent})) }
+// 누적 PCM → 16kHz mono 16bit WAV 인코딩
+function flattenRing(){ let t=0; for(const c of audioRing)t+=c.length; const o=new Float32Array(t); let p=0; for(const c of audioRing){o.set(c,p);p+=c.length} return o }
+function buildWav(s,sr){ const buf=new ArrayBuffer(44+s.length*2),v=new DataView(buf)
+  const ws_=(o,str)=>{for(let i=0;i<str.length;i++)v.setUint8(o+i,str.charCodeAt(i))}
+  ws_(0,'RIFF');v.setUint32(4,36+s.length*2,true);ws_(8,'WAVE');ws_(12,'fmt ');v.setUint32(16,16,true)
+  v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true)
+  v.setUint16(32,2,true);v.setUint16(34,16,true);ws_(36,'data');v.setUint32(40,s.length*2,true)
+  let o=44; for(let i=0;i<s.length;i++){let x=Math.max(-1,Math.min(1,s[i]));v.setInt16(o,x<0?x*0x8000:x*0x7FFF,true);o+=2}
+  return buf }
+function b64FromBuf(buf){ let bin='';const b=new Uint8Array(buf);const chunk=0x8000; for(let i=0;i<b.length;i+=chunk)bin+=String.fromCharCode.apply(null,b.subarray(i,i+chunk)); return btoa(bin) }
+function startPeriodicChecks(){
+  gazeCheckInterval=setInterval(()=>{ if(_lastLm)sendFaceCropForGaze(_lastLm) },200)
+  phoneCheckInterval=setInterval(()=>{ if(!ws||ws.readyState!==1||!video.videoWidth)return; const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').drawImage(video,0,0,640,480); ws.send(JSON.stringify({type:'frame',frame_base64:c.toDataURL('image/jpeg',0.72).split(',')[1]})) },800)
+  audioCheckInterval=setInterval(()=>{ if(currentMode==='dev')$('stNoise').textContent=getDb().toFixed(1)+' dB' },1000)
+  // 약 2초마다 누적 오디오를 WAV로 서버 전송 → AudioSet 이벤트/방해음 분석
+  audioSendInterval=setInterval(()=>{ if(!ws||ws.readyState!==1||!audioRing.length)return
+    const s=flattenRing(); if(s.length<16000)return  // 최소 1초
+    try{ ws.send(JSON.stringify({type:'audio',audio_base64:b64FromBuf(buildWav(s,16000)),sample_rate:16000})) }catch(_){} }, 2000)
+}
+function sendFaceCropForGaze(lm){ if(!ws||ws.readyState!==1||!video.videoWidth)return; const b=faceBox(lm),m=0.2,x1=Math.max(0,b.minX-b.w*m),y1=Math.max(0,b.minY-b.h*m),x2=Math.min(1,b.maxX+b.w*m),y2=Math.min(1,b.maxY+b.h*m)
+  const cc=document.createElement('canvas'),S=224;cc.width=S;cc.height=S;const cg=cc.getContext('2d');cg.save();cg.scale(-1,1);cg.drawImage(video,x1*video.videoWidth,y1*video.videoHeight,(x2-x1)*video.videoWidth,(y2-y1)*video.videoHeight,-S,0,S,S);cg.restore()
+  ws.send(JSON.stringify({type:'gaze',face_base64:cc.toDataURL('image/jpeg',0.7).split(',')[1]})) }
+
+// ===== 핸들러 =====
+function handleGaze(d){ if(d.yaw!=null&&d.pitch!=null){serverGaze.yaw=d.yaw;serverGaze.pitch=d.pitch;serverGaze.updated=true; if(phase==='calibrating')calibSamples.push({yaw:d.yaw,pitch:d.pitch})} }
+function finalizeCalibration(){ if(calibSamples.length>=5){const ys=calibSamples.map(s=>s.yaw).sort((a,b)=>a-b),ps=calibSamples.map(s=>s.pitch).sort((a,b)=>a-b),mid=a=>a[Math.floor(a.length/2)];gazeBaseline.yaw=mid(ys);gazeBaseline.pitch=mid(ps);gazeBaseline.set=true}
+  if(calibHeadSamples.length>=5){const hs=[...calibHeadSamples].sort((a,b)=>a-b);headBaseline.pitch=hs[Math.floor(hs.length/2)];headBaseline.set=true}
+  if(currentMode==='dev')$('stBase').textContent=`y${gazeBaseline.yaw.toFixed(0)}/p${gazeBaseline.pitch.toFixed(0)}`; addLog('시선 원점 보정 완료') }
+function onPhaseChange(prev,now){
+  if(prev==='calibrating'&&now==='adapting'){ finalizeCalibration(); flashOverlay('학습 환경 적응을 시작합니다',2500); $('adaptBtn').classList.add('hidden'); addLog('환경 적응 시작') }
+  if(prev==='active'&&now==='adapting'){ resetZones(); flashOverlay('학습 환경 재적응 중입니다',2500); $('adaptBtn').classList.add('hidden'); $('heatBtn').classList.add('hidden'); addLog('재적응 시작') }
+  if(now==='active'&&prev!=='active'){ reachedActive=true; flashOverlay('집중도 측정을 시작합니다',2500); $('adaptBtn').classList.remove('hidden'); if(currentMode==='focus')$('heatBtn').classList.remove('hidden'); addLog('집중도 측정 시작') }
+}
+function applyPhase(d){ if(d.learning_zones)applyServerZones(d.learning_zones); if(d.phase&&['calibrating','adapting','active'].includes(d.phase)){const prev=phase;phase=d.phase;if(currentMode==='dev')$('stPhase').textContent=d.phase;if(prev!==phase)onPhaseChange(prev,phase)} }
+function handleConcentration(d){ lastGrade=d.grade||lastGrade; if(d.score!=null)lastScore=d.score
+  if(currentMode==='dev'&&d.grade){const el=$('gradeLetter');el.textContent=d.grade;el.className='grade-letter grade-'+d.grade;$('gradeScore').textContent='점수: '+d.score}
+  applyPhase(d); if(d.triggers&&d.triggers.length&&currentMode==='dev')for(const t of d.triggers)addLog('감지: '+t,t.includes('F')?'err':'warn') }
+function handlePhase(d){ applyPhase(d) }
+function handlePhone(d){
+  // 시간적 디바운스: 최근 3회 중 2회 이상 감지돼야 '확정'(오탐·깜빡임 억제)
+  phoneHist.push(!!d.phone_detected); if(phoneHist.length>3)phoneHist.shift()
+  const confirmed = phoneHist.filter(Boolean).length>=2
+  latestPhone={phone_detected:confirmed,phone_confidence:d.phone_confidence||0,bbox:(confirmed?d.phone_bbox:null),t:Date.now()}
+  if(currentMode==='dev')$('stPhone').textContent=confirmed?`감지 (${(d.phone_confidence*100).toFixed(0)}%)`:(d.phone_detected?'후보…':'없음')
+  if(confirmed)addLog('휴대폰 감지','warn') }
+// 휴대폰 바운딩박스 오버레이 (집중·개발자 모드 공통). 프레임 640×480 좌표 기준.
+function drawPhoneBox(){
+  if(!latestPhone.phone_detected||!latestPhone.bbox||Date.now()-latestPhone.t>2000) return
+  const b=latestPhone.bbox, x1=b[0],y1=b[1],x2=b[2],y2=b[3]
+  ctx.strokeStyle='#ef5350'; ctx.lineWidth=3; ctx.strokeRect(x1,y1,x2-x1,y2-y1)
+  // 거울모드 보정: 글자를 좌우 반전해 그려 화면에서 정상으로 보이게 함
+  ctx.save(); ctx.translate(x2, Math.max(16,y1)-5); ctx.scale(-1,1)
+  ctx.font='bold 14px sans-serif'; ctx.fillStyle='#ef5350'
+  ctx.fillText('휴대폰 '+Math.round(latestPhone.phone_confidence*100)+'%', 0, 0); ctx.restore()
+}
+function handleAudio(d){
+  latestAudio={is_disruptive:!!d.is_disruptive,is_study_event:!!d.is_study_event,noise_db:d.noise_db||0,
+    study_events:d.study_events||[],detected_sounds:d.detected_sounds||[],t:Date.now()}
+  if(currentMode==='dev'){ $('stNoise').textContent=(d.noise_db||0).toFixed(1)+' dB'
+    const tag=d.is_study_event?'학습 이벤트음':(d.is_disruptive?'방해음':'정상')
+    const detail=(d.study_events&&d.study_events.length?d.study_events.join(','):(d.detected_sounds&&d.detected_sounds.length?d.detected_sounds.join(','):'-'))
+    if($('stAudioEvt'))$('stAudioEvt').textContent=tag+' ('+detail+')'
+    if(d.is_study_event)addLog('학습 이벤트음 감지: '+(d.study_events||[]).join(','))
+    else if(d.is_disruptive)addLog('방해음 감지: '+(d.detected_sounds||[]).join(','),'warn') } }
+function handleNoFace(){ if(phase==='align'){setOverlay('얼굴이 감지되지 않습니다. 카메라를 확인해 주세요');alignStableFrames=0;return}
+  if(['active','adapting','calibrating'].includes(phase)){ if(!faceAbsentStart)faceAbsentStart=Date.now(); const el=(Date.now()-faceAbsentStart)/1000; showWarn(`⚠️ 얼굴이 감지되지 않습니다 (${Math.ceil(AUTO_END_SEC-el)}초 후 자동 종료)`); if(el>=AUTO_END_SEC){addLog('자리 이탈 자동 종료','err');stopSession()} } }
+function showWarn(t){ $('warnFlash').classList.add('on');$('warnText').textContent=t;$('warnText').classList.remove('hidden') }
+function clearWarn(){ faceAbsentStart=0;$('warnFlash').classList.remove('on');$('warnText').classList.add('hidden') }
+
+// ===== 재적응 =====
+function openReadapt(){ if(phase!=='active')return; $('readaptModal').classList.remove('hidden') }
+function closeReadapt(){ $('readaptModal').classList.add('hidden') }
+function confirmReadapt(){ closeReadapt(); if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'readapt'})); setOverlay('재적응을 요청했습니다…') }
+
+// ===== 오버레이 =====
+function setOverlay(t,big){const o=$('overlayMsg');o.textContent=t;o.classList.remove('hidden');o.classList.toggle('big',!!big)}
+function clearOverlay(){ $('overlayMsg').classList.add('hidden') }
+function flashOverlay(t,ms){ setOverlay(t,true); clearTimeout(overlayTimer); overlayTimer=setTimeout(()=>{ if(phase==='active'&&currentMode==='focus')clearOverlay(); else if(phase==='adapting')setOverlay('학습 환경 분석 중입니다…'); else clearOverlay() },ms) }
+
+// ===== 개발자 패널 =====
+function updateDev(f,gp){ $('stFace').textContent=f.face_detected?'O':'X';$('stFace').style.color=f.face_detected?'#66bb6a':'#ef5350'
+  if(f.ear_left!=null)$('stEar').textContent=((f.ear_left+f.ear_right)/2).toFixed(3); if(f.mar!=null)$('stMar').textContent=f.mar.toFixed(3)
+  if(serverGaze.updated){const cy=serverGaze.yaw-(gazeBaseline.set?gazeBaseline.yaw:0),cp=serverGaze.pitch-(gazeBaseline.set?gazeBaseline.pitch:0);$('stGaze').textContent=`${cy.toFixed(1)} / ${cp.toFixed(1)}`}
+  if(f.head_yaw!=null)$('stHead').textContent=`${f.head_yaw.toFixed(1)} / ${f.head_pitch.toFixed(1)}`
+  if(gp){$('stGp').textContent=`(${gp.x.toFixed(2)}, ${gp.y.toFixed(2)})`;const iz=isInStudyZone(gp.x,gp.y);$('stZone').textContent=iz?'IN':'OUT';$('stZone').style.color=iz?'#66bb6a':'#ef5350'}
+  $('stFw').textContent=lastFaceW.toFixed(3); $('stPts').textContent=gazeHistory.length; $('stZones').textContent=serverZoneList?serverZoneList.length:0 }
+
+// ===== 타이머 =====
+function startTimer(){ startTime=Date.now(); timerInterval=setInterval(()=>{const s=Math.floor((Date.now()-startTime)/1000);$('miniTimer').textContent=`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`},1000) }
+function toggleHeatmap(){ showHeatmap=!showHeatmap;$('heatBtn').classList.toggle('on',showHeatmap);$('heatBtn').textContent=showHeatmap?'집중 분포 끄기':'집중 분포 보기' }
+// 전체화면 토글 (데스크톱·태블릿·모바일, 벤더 프리픽스 대응)
+function isFullscreen(){ return document.fullscreenElement||document.webkitFullscreenElement||document.webkitCurrentFullScreenElement }
+function toggleFullscreen(){
+  try{
+    if(!isFullscreen()){
+      const el=document.documentElement, req=el.requestFullscreen||el.webkitRequestFullscreen||el.webkitRequestFullScreen||el.msRequestFullscreen
+      if(req) req.call(el)
+    } else {
+      const ex=document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen
+      if(ex) ex.call(document)
+    }
+  }catch(e){ /* iOS Safari 등 일부 미지원 환경 */ }
+}
+function syncFsBtn(){ const b=$('fsBtn'); if(!b)return; b.classList.toggle('on',!!isFullscreen()); b.textContent=isFullscreen()?'⛶ 창 모드':'⛶ 전체화면' }
+document.addEventListener('fullscreenchange', syncFsBtn)
+document.addEventListener('webkitfullscreenchange', syncFsBtn)
+
+// ===== 종료 / 결과 =====
+async function stopSession(){
+  const hadSession=!!sessionId, completed=reachedActive
+  let summary=null
+  try{ if(sessionId){const res=await fetch('/api/sessions/end',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sessionId})});summary=await res.json()} }catch(e){ addLog('종료 오류','err') }
+  phase='ended'; const mode=currentMode; stopSessionIO(); resetSessionState()
+  if(!hadSession || (summary&&summary.error)){ show('modeScreen'); return }
+  const rec=completed?summary:{incomplete:true,elapsed_sec:summary?summary.elapsed_sec:0}
+  saveRecord(mode,rec,completed); showResult(mode,rec,Date.now(),completed)
+}
+function scoreToGrade(s){ return s>=85?'A':s>=70?'B':s>=50?'C':'F' }
+
+// ===== 로컬 기록 =====
+function saveRecord(mode,summary,completed){ const recs=JSON.parse(localStorage.getItem('leam_records')||'[]'); recs.unshift({id:Date.now(),mode,date:new Date().toISOString(),completed:!!completed,summary}); localStorage.setItem('leam_records',JSON.stringify(recs.slice(0,100))) }
+let _detailOpen=false
+function showResult(mode,s,ts,completed){
+  const ok=completed!==false&&!(s&&s.incomplete)
+  $('resBadge').textContent=(mode==='focus'?'집중 모드':'개발자 모드')+(ok?'':' · 중단'); $('resBadge').className='badge '+(mode==='focus'?'badge-focus':'badge-dev')
+  $('resDate').textContent=new Date(ts).toLocaleString('ko-KR')
+  if(ok){ const score=s.final_score||0, g=scoreToGrade(score)
+    $('resMain').innerHTML=`<div class="big-grade grade-${g}">${g}</div><div class="big-score">${score.toFixed(1)}<span class="of">/ 100</span></div><div class="res-sub">최종 집중 점수</div>`
+    $('detailToggle').classList.remove('hidden'); renderStats($('resStats'),s)
+  } else {
+    $('resMain').innerHTML=`<div class="res-incomplete">측정 중단</div><div class="res-sub">집중도 측정 단계 전에 종료되어 점수가 산출되지 않았습니다<br>(총 진행 ${fmtTime(s&&s.elapsed_sec||0)})</div>`
+    $('detailToggle').classList.add('hidden')
+  }
+  _detailOpen=false; $('resStats').classList.add('hidden'); $('detailToggle').textContent='상세 결과 보기 ▾'
+  show('resultScreen')
+}
+function toggleDetail(){ _detailOpen=!_detailOpen; $('resStats').classList.toggle('hidden',!_detailOpen); $('detailToggle').textContent=_detailOpen?'상세 결과 닫기 ▴':'상세 결과 보기 ▾' }
+const TRIGGER_KO={drowsy:'졸음',sleeping:'수면',yawning:'하품',phone_detected:'휴대폰 사용',
+  gaze_brief_deviation:'시선 이탈(단기)',gaze_sustained_deviation:'시선 이탈(지속)',
+  disruptive_noise:'소음 방해',face_absent:'자리 이탈',face_momentary_loss:'얼굴 일시 미검출',
+  face_absent_prolonged:'장시간 이탈'}
+function renderStats(el,s){
+  // 1. 요약 카드
+  const cards=[
+    {label:'총 학습 시간',val:fmtTime(s.elapsed_sec||0)},
+    {label:'실질 집중 시간',val:fmtTime(s.focus_time_sec||0)},
+    {label:'집중 비율',val:((s.focus_ratio||0)*100).toFixed(1)+'%'},
+    {label:'총 측정 프레임',val:(s.total_frames||0)+''},
+  ]
+  let html=`<div class="stat-grid">`+cards.map(i=>`<div class="stat-card"><div class="val">${i.val}</div><div class="label">${i.label}</div></div>`).join('')+`</div>`
+  // 2) 등급별 분포 + 점수 기여
+  const pb=s.penalty_breakdown||{}, gdesc={A:'집중',B:'집중 저하',C:'산만',F:'이탈/수면'}, pen={A:0,B:1,C:3,F:10}
+  html+=`<div class="brk"><h4>등급별 분포 및 점수 기여</h4><table class="brk-t">
+    <tr><th>등급</th><th>상태</th><th>프레임</th><th>프레임당 감점</th><th>감점 합</th></tr>`
+  for(const g of ['A','B','C','F']){const r=pb[g]||{frames:(s.grade_distribution||{})[g]||0,penalty_each:pen[g],penalty_total:((s.grade_distribution||{})[g]||0)*pen[g]}
+    html+=`<tr><td class="grade-${g}" style="font-weight:700">${g}</td><td>${gdesc[g]}</td><td>${r.frames}</td><td>${r.penalty_each}</td><td>${r.penalty_total}</td></tr>`}
+  html+=`</table></div>`
+  // 3) 감지된 방해 요인 횟수
+  const tc=s.trigger_counts||{}, keys=Object.keys(tc).filter(k=>tc[k]>0)
+  html+=`<div class="brk"><h4>감지된 방해 요인 (프레임 수)</h4>`
+  html+= keys.length ? `<div class="chips">`+keys.map(k=>`<span class="chip">${TRIGGER_KO[k]||k} · ${tc[k]}</span>`).join('')+`</div>` : `<div style="color:#888;font-size:13px">감지된 방해 요인이 없습니다.</div>`
+  html+=`</div>`
+  // 4) 점수 산출 과정 (투명화)
+  const tp=s.total_penalty!=null?s.total_penalty:0, tf=s.total_frames||1, sc=(s.final_score||0)
+  const bP=pb.B?pb.B.penalty_total:0, cP=pb.C?pb.C.penalty_total:0, fP=pb.F?pb.F.penalty_total:0
+  html+=`<div class="brk formula"><h4>최종 점수 산출 과정</h4>
+    <div>총 감점 = (B ${bP}) + (C ${cP}) + (F ${fP}) = <b>${tp}</b></div>
+    <div>최종 점수 = 100 − (총감점 ${tp} ÷ 총프레임 ${tf}) × 100 = <b>${sc.toFixed(1)}점</b></div>
+    <div class="note">※ 계층적 판단 모델이 매 프레임을 A/B/C/F로 분류하고, 등급별 감점(A=0·B=1·C=3·F=10)을 누적합니다. 졸음·휴대폰·시선이탈 등 방해 요인이 많을수록 C·F 프레임이 늘어 감점이 커지고 점수가 낮아집니다.</div>
+  </div>`
+  el.innerHTML=html
+}
+function showRecords(){ const recs=JSON.parse(localStorage.getItem('leam_records')||'[]'),list=$('recList')
+  if(!recs.length){list.innerHTML='<div class="rec-empty">아직 저장된 기록이 없습니다.</div>';show('recordsScreen');return}
+  list.innerHTML=recs.map((r,i)=>{ const badge=r.mode==='focus'?'<span class="badge badge-focus">집중</span>':'<span class="badge badge-dev">개발자</span>'
+    const ok=r.completed!==false&&!(r.summary&&r.summary.incomplete)
+    const left=ok?`<div class="rgrade grade-${scoreToGrade(r.summary.final_score||0)}">${scoreToGrade(r.summary.final_score||0)}</div><div class="rscore">${(r.summary.final_score||0).toFixed(0)}</div>`:`<div class="rscore" style="color:#ff9800;font-size:16px">중단</div>`
+    const meta=ok?`집중비율 ${((r.summary.focus_ratio||0)*100).toFixed(0)}% · ${fmtTime(r.summary.elapsed_sec||0)}`:`측정 전 종료 · ${fmtTime(r.summary&&r.summary.elapsed_sec||0)}`
+    return `<div class="rec-item" onclick="viewRecord(${i})">${left}<div class="rmeta"><div>${badge} &nbsp; ${meta}</div><div class="rdate">${new Date(r.date).toLocaleString('ko-KR')}</div></div></div>` }).join('')
+  show('recordsScreen') }
+function viewRecord(i){ const recs=JSON.parse(localStorage.getItem('leam_records')||'[]'),r=recs[i]; if(!r)return; showResult(r.mode,r.summary,new Date(r.date).getTime(),r.completed!==false&&!(r.summary&&r.summary.incomplete)) }
+function clearRecords(){ if(confirm('모든 기록을 삭제할까요?')){localStorage.removeItem('leam_records');showRecords()} }
+
+// ===== 유틸 =====
+function fmtTime(sec){ sec=Math.round(sec);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return `${h?h+'시간 ':''}${m}분 ${s}초` }
+function addLog(msg,level){ if(currentMode!=='dev')return; const area=$('logArea');if(!area)return;const d=document.createElement('div');d.className=level?'log-'+level:'';d.textContent=`[${new Date().toLocaleTimeString('ko-KR')}] ${msg}`;area.prepend(d);if(area.children.length>80)area.lastChild.remove() }
+</script>
+</body>
+</html>
