@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="548" viewBox="0 0 900 548" role="img" aria-label="LEAM 모델별 검증 성능 요약">
+  <defs>
+    <style>
+      .t   { font-family: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+      .ttl { font-size: 19px; font-weight: 700; fill: #1f2328; }
+      .sub { font-size: 12.5px; fill: #6e7781; }
+      .lbl { font-size: 13px; fill: #24292f; }
+      .cap { font-size: 11px; fill: #8c959f; }
+      .val { font-size: 13px; font-weight: 700; fill: #1f2328; }
+      .ax  { font-size: 10.5px; fill: #a0a7ae; }
+      .grp { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="548" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+
+  <text class="t ttl" x="28" y="40">모델별 검증 성능 요약</text>
+  <text class="t sub" x="28" y="61">전이학습 2건 · 학습 Zone 실측 3세션 · 시선 추정 인용 지표</text>
+
+  <!-- grid -->
+  <g stroke="#eaeef2" stroke-width="1">
+    <line x1="330" y1="90" x2="330" y2="462"/>
+    <line x1="440" y1="90" x2="440" y2="462"/>
+    <line x1="550" y1="90" x2="550" y2="462"/>
+    <line x1="660" y1="90" x2="660" y2="462"/>
+    <line x1="770" y1="90" x2="770" y2="462"/>
+  </g>
+  <line x1="330" y1="462" x2="770" y2="462" stroke="#d0d7de"/>
+  <g class="t ax" text-anchor="middle">
+    <text x="330" y="480">0.0</text>
+    <text x="440" y="480">0.25</text>
+    <text x="550" y="480">0.50</text>
+    <text x="660" y="480">0.75</text>
+    <text x="770" y="480">1.00</text>
+  </g>
+
+  <!-- ── VISION ─────────────────────────────── -->
+  <text class="t grp" x="28" y="100" fill="#1f6feb">VISION · 휴대폰 탐지</text>
+  <text class="t cap" x="28" y="117">YOLOv8n fine-tuned · AI Hub 704장 (val 140)</text>
+  <g>
+    <text class="t lbl" x="320" y="138" text-anchor="end">mAP@0.5</text>
+    <rect x="330" y="126" width="440" height="16" rx="3" fill="#f0f3f6"/>
+    <rect x="330" y="126" width="376.2" height="16" rx="3" fill="#1f6feb"/>
+    <text class="t val" x="716" y="139">0.855</text>
+  </g>
+  <g>
+    <text class="t lbl" x="320" y="166" text-anchor="end">mAP@0.5:0.95</text>
+    <rect x="330" y="154" width="440" height="16" rx="3" fill="#f0f3f6"/>
+    <rect x="330" y="154" width="298.3" height="16" rx="3" fill="#54a0ff"/>
+    <text class="t val" x="638" y="167">0.678</text>
+  </g>
+
+  <line x1="28" y1="186" x2="872" y2="186" stroke="#f0f3f6"/>
+
+  <!-- ── AUDIO ──────────────────────────────── -->
+  <text class="t grp" x="28" y="208" fill="#8250df">AUDIO · 환경음 분류</text>
+  <text class="t cap" x="28" y="225">PANNs CNN10 · DCASE 2016 fold1 · 3-class</text>
+  <g>
+    <text class="t lbl" x="320" y="246" text-anchor="end">Accuracy</text>
+    <rect x="330" y="234" width="440" height="16" rx="3" fill="#f0f3f6"/>
+    <rect x="330" y="234" width="363.8" height="16" rx="3" fill="#8250df"/>
+    <text class="t val" x="704" y="247">0.827</text>
+  </g>
+  <g>
+    <text class="t lbl" x="320" y="274" text-anchor="end">Macro-F1</text>
+    <rect x="330" y="262" width="440" height="16" rx="3" fill="#f0f3f6"/>
+    <rect x="330" y="262" width="357.7" height="16" rx="3" fill="#a371f7"/>
+    <text class="t val" x="698" y="275">0.813</text>
+  </g>
+
+  <line x1="28" y1="294" x2="872" y2="294" stroke="#f0f3f6"/>
+
+  <!-- ── ADAPTATION ─────────────────────────── -->
+  <text class="t grp" x="28" y="316" fill="#1a7f37">ADAPTATION · 학습 Zone</text>
+  <text class="t cap" x="28" y="333">I-DT fixation + 응시시간 가중 KDE + 연결요소</text>
+  <g>
+    <text class="t lbl" x="320" y="354" text-anchor="end">학습영역 포함률 (Recall)</text>
+    <rect x="330" y="342" width="440" height="16" rx="3" fill="#f0f3f6"/>
+    <rect x="330" y="342" width="432.9" height="16" rx="3" fill="#1a7f37"/>
+    <text class="t val" x="773" y="355">0.984</text>
+  </g>
+  <g>
+    <text class="t lbl" x="320" y="382" text-anchor="end">Dice · 실측 3세션 평균</text>
+    <rect x="330" y="370" width="440" height="16" rx="3" fill="#f0f3f6"/>
+    <rect x="330" y="370" width="339.7" height="16" rx="3" fill="#4ac26b"/>
+    <text class="t val" x="679" y="383">0.772</text>
+  </g>
+  <g>
+    <text class="t lbl" x="320" y="410" text-anchor="end">IoU · 실측 3세션 평균</text>
+    <rect x="330" y="398" width="440" height="16" rx="3" fill="#f0f3f6"/>
+    <rect x="330" y="398" width="278.5" height="16" rx="3" fill="#2da44e"/>
+    <text class="t val" x="618" y="411">0.633</text>
+  </g>
+  <g>
+    <text class="t lbl" x="320" y="438" text-anchor="end">IoU · 통제 합성 평균</text>
+    <rect x="330" y="426" width="440" height="16" rx="3" fill="#f0f3f6"/>
+    <rect x="330" y="426" width="116.2" height="16" rx="3" fill="#93c9a3"/>
+    <text class="t val" x="456" y="439">0.264</text>
+  </g>
+
+  <!-- footer callout -->
+  <rect x="28" y="500" width="844" height="32" rx="6" fill="#f6f8fa" stroke="#eaeef2"/>
+  <circle cx="46" cy="516" r="4" fill="#bf3989"/>
+  <text class="t lbl" x="60" y="520">GAZE · L2CS-Net · Mean Angular Error <tspan font-weight="700">8.8°</tspan> — 성과 목표 &lt; 10° 대비 달성률 100% (사전 검증 가중치 인용)</text>
+</svg>
